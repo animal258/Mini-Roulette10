@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini Roulette ⚡</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    body {
+      background: linear-gradient(135deg, #3a1c71, #d76d77, #ffaf7b);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      color: #fff;
+      font-family: sans-serif;
+      padding: 1rem;
+      margin: 0;
+    }
+
+    @keyframes gradientBG {
+      0% {background-position: 0% 50%;}
+      50% {background-position: 100% 50%;}
+      100% {background-position: 0% 50%;}
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    #auth-buttons {
+      display: flex;
+      gap: 1rem;
+    }
+
+    #balance-display {
+      font-size: 1.5rem;
+      font-weight: bold;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      background-color: rgba(0, 128, 0, 0.3);
+    }
+
+    #balance.low {
+      background-color: rgba(255, 0, 0, 0.3);
+    }
+
+    input, select, button {
+      margin: 0.5rem;
+      padding: 0.6rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: none;
+    }
+
+    button {
+      background: #f90;
+      color: #000;
+      cursor: pointer;
+    }
+
+    #top-section {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    #wheel-container {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      border: 8px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+
+    #wheel {
+      font-size: 4rem;
+      transition: transform 1.5s ease-out;
+    }
+
+    .number-slot {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: #fff2;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+
+    #history-box {
+      width: 250px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.4);
+      padding: 1rem;
+      border-radius: 10px;
+    }
+
+    #controls, #payment-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    #result {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+    }
+
+    #qr {
+      margin: 1rem;
+      background: #fff;
+      display: inline-block;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div id="rules" style="font-size: 0.8rem;">If you guess the number: x2 — If you guess the color: +50% — Else: lose</div>
+    <div id="auth-buttons">
+      <button onclick="showRegister()">Register</button>
+      <button onclick="showLogin()">Login</button>
+    </div>
+  </header>
+
+  <h1 style="text-align: center">🎰 Mini Roulette ⚡</h1>
+  <div id="balance-display">Balance: <span id="balance">0</span> sats</div>
+
+  <div id="top-section">
+    <div id="wheel-container">
+      <div id="wheel">🎯</div>
+    </div>
+    <div id="history-box">
+      <h3>Game History</h3>
+      <ul id="history"></ul>
+    </div>
+  </div>
+
+  <div id="controls">
+    <input type="number" id="bet" placeholder="Bet (sats)" min="1"/>
+
+    <select id="number">
+      <option disabled selected value="">Choose number (1-10)</option>
+      ${[...Array(10).keys()].map(i => `<option value="${i+1}">${i+1}</option>`).join('')}
+    </select>
+
+    <select id="color">
+      <option disabled selected value="">Choose color</option>
+      <option value="red">Red</option>
+      <option value="black">Black</option>
+    </select>
+
+    <button onclick="play()">Play</button>
+  </div>
+
+  <div id="payment-section">
+    <input type="text" id="lnaddress" placeholder="you@speedwallet.me" />
+    <input type="number" id="amount" placeholder="Amount (sats)" min="10" />
+    <button onclick="generateInvoice()">⚡ Add Sats</button>
+    <div id="qr"></div>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    let currentUser = localStorage.getItem('user') || null;
+    let balances = JSON.parse(localStorage.getItem('balances') || '{}');
+    if (currentUser && balances[currentUser] !== undefined) {
+      updateBalance(balances[currentUser]);
+    }
+
+    function updateBalance(newBalance) {
+      if (!currentUser) return;
+      balances[currentUser] = newBalance;
+      localStorage.setItem('balances', JSON.stringify(balances));
+      document.getElementById('balance').textContent = newBalance;
+      document.getElementById('balance-display').classList.toggle('low', newBalance < 100);
+    }
+
+    function generateInvoice() {
+      const ln = document.getElementById('lnaddress').value.trim();
+      const amount = parseInt(document.getElementById('amount').value);
+      if (!ln || !amount || amount < 10) return alert("Please enter valid LN address and amount.");
+
+      const qrDiv = document.getElementById('qr');
+      const lnurl = `lightning:${ln}`;
+      qrDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(lnurl)}&size=200x200" /> 
+        <p>${lnurl}</p>
+        <p><strong>After payment, manually click to add sats.</strong></p>`;
+
+      updateBalance((balances[currentUser] || 0) + amount);
+    }
+
+    function play() {
+      const bet = parseInt(document.getElementById('bet').value);
+      const number = parseInt(document.getElementById('number').value);
+      const color = document.getElementById('color').value;
+      if (!bet || !number || !color) return alert('Fill all fields.');
+      if (bet > balances[currentUser]) return alert('Insufficient balance.');
+
+      updateBalance(balances[currentUser] - bet);
+
+      const resultNumber = Math.floor(Math.random() * 10) + 1;
+      const resultColor = Math.random() < 0.5 ? 'red' : 'black';
+
+      const wheel = document.getElementById('wheel');
+      wheel.style.transform = 'rotate(0deg)';
+      setTimeout(() => {
+        wheel.style.transform = `rotate(${360 * 4 + Math.floor(Math.random() * 360)}deg)`;
+      }, 50);
+
+      document.getElementById('result').textContent = 'Spinning...';
+
+      setTimeout(() => {
+        let win = 0;
+        if (number === resultNumber) {
+          win = bet * 2;
+        } else if (color === resultColor) {
+          win = Math.floor(bet / 2);
+        }
+        updateBalance(balances[currentUser] + win);
+
+        document.getElementById('result').innerHTML = `Result: ${resultNumber} - ${resultColor} → Winnings: ${win} sats`;
+
+        const li = document.createElement('li');
+        li.textContent = `${resultNumber} - ${resultColor} → +${win} sats`;
+        document.getElementById('history').prepend(li);
+      }, 1700);
+    }
+
+    function showRegister() {
+      const name = prompt("Choose a username:");
+      if (!name) return;
+      if (balances[name]) return alert("Username already exists.");
+      balances[name] = 0;
+      localStorage.setItem('balances', JSON.stringify(balances));
+      localStorage.setItem('user', name);
+      currentUser = name;
+      updateBalance(0);
+      updateAuthUI();
+    }
+
+    function showLogin() {
+      const name = prompt("Enter your username:");
+      if (!balances[name]) return alert("User not found.");
+      currentUser = name;
+      localStorage.setItem('user', name);
+      updateBalance(balances[name]);
+      updateAuthUI();
+    }
+
+    function updateAuthUI() {
+      const auth = document.getElementById('auth-buttons');
+      auth.innerHTML = `<span>Welcome, ${currentUser}</span> <button onclick="logout()">Logout</button>`;
+    }
+
+    function logout() {
+      currentUser = null;
+      localStorage.removeItem('user');
+      document.getElementById('auth-buttons').innerHTML = '<button onclick="showRegister()">Register</button><button onclick="showLogin()">Login</button>';
+      document.getElementById('balance').textContent = 0;
+    }
+  </script>
+</body>
+</html>
